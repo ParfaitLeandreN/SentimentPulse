@@ -1,52 +1,129 @@
+# app/dashboard.py
 import streamlit as st
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+import plotly.express as px
+import os
 
+# import helper functions from utils
 from utils.reddit_scraper import get_reddit_posts
 from utils.sentiment import analyze_sentiment
 
-st.set_page_config(page_title="SentimentPulse Dashboard", layout="wide")
-st.title("📈 SentimentPulse Dashboard")
+st.set_page_config(page_title="SentimentPulse", layout="wide")
+st.title("📈 SentimentPulse — Live Reddit Sentiment")
 
-# ---------------------------
-# User Input
-# ---------------------------
-ticker = st.text_input("Enter a stock ticker (e.g. AAPL, TSLA, MSFT):", value="AAPL")
-num_posts = st.sidebar.slider("Number of posts to fetch", min_value=10, max_value=100, value=30)
+# -----------------------
+# Sidebar controls
+# -----------------------
+st.sidebar.header("Controls")
+ticker = st.sidebar.text_input("Ticker (e.g. TSLA, AAPL, MSFT)", value="TSLA", max_chars=8)
+num_posts = st.sidebar.slider("Posts to fetch", min_value=10, max_value=200, value=50, step=10)
+cache_seconds = st.sidebar.number_input("Cache TTL (seconds)", min_value=60, max_value=3600, value=600, step=60)
+run = st.sidebar.button("Run Analysis")
 
-if st.button("Run Analysis"):
-    with st.spinner("Fetching Reddit posts and analyzing sentiment..."):
-        posts = get_reddit_posts(ticker, limit=num_posts)
+# -----------------------
+# Cached fetch + analyze
+# -----------------------
+@st.cache_data(ttl=600)
+def fetch_and_analyze(ticker: str, limit: int):
+    # fetch posts
+    posts = get_reddit_posts(ticker, limit=limit)
+    if posts.empty:
+        return pd.DataFrame()
+    # add sentiment labels
+    df = analyze_sentiment(posts)
+    # create datetime column from reddit created_utc (seconds)
+    df['created_dt'] = pd.to_datetime(df['created'], unit='s')
+    return df
 
-        if posts.empty:
-            st.warning("No posts found. Try another ticker.")
-            st.stop()
+# update cached function's TTL dynamically if user modified cache_seconds
+fetch_and_analyze = st.cache_data(ttl=cache_seconds)(fetch_and_analyze.__wrapped__)
 
-        df = analyze_sentiment(posts)
+# -----------------------
+# Main UI
+# -----------------------
+if not run:
+    st.info("Enter a ticker and click **Run Analysis** in the sidebar.")
+    st.stop()
 
-        # Sidebar: Filter by sentiment
-        sentiment_filter = st.sidebar.multiselect(
-            "Filter by sentiment", options=df['sentiment'].unique(), default=df['sentiment'].unique()
-        )
-        filtered_df = df[df['sentiment'].isin(sentiment_filter)]
+with st.spinner("Fetching Reddit posts and analyzing sentiment..."):
+    df = fetch_and_analyze(ticker, num_posts)
 
-        # ---------------------------
-        # Sentiment Distribution
-        # ---------------------------
-        st.subheader("Sentiment Distribution")
-        fig, ax = plt.subplots()
-        sns.countplot(x='sentiment', data=filtered_df, order=["positive", "neutral", "negative"], palette="Set2", ax=ax)
-        ax.set_xlabel("Sentiment")
-        ax.set_ylabel("Number of posts")
-        st.pyplot(fig)
+if df.empty:
+    st.warning("No posts found for that ticker. Try a different ticker or increase 'Posts to fetch'.")
+    st.stop()
 
-        # ---------------------------
-        # Show top posts
-        # ---------------------------
-        st.subheader(f"Top {len(filtered_df.head(10))} Reddit Posts")
-        for i, row in filtered_df.head(10).iterrows():
-            st.markdown(f"**{row['title']}**  \nSentiment: *{row['sentiment']}*  \n[Link]({row['url']})")
+# compute metrics
+total = len(df)
+counts = df['sentiment'].value_counts().to_dict()
+pos = counts.get('positive', 0)
+neu = counts.get('neutral', 0)
+neg = counts.get('negative', 0)
+pos_pct = round(100 * pos / total, 1) if total else 0
+neg_pct = round(100 * neg / total, 1) if total else 0
+neu_pct = round(100 * neu / total, 1) if total else 0
+
+# KPI row
+k1, k2, k3, k4 = st.columns([1.5, 1, 1, 1])
+k1.metric("Ticker", ticker.upper())
+k2.metric("Total posts", total)
+k3.metric("Positive %", f"{pos_pct}%")
+k4.metric("Negative %", f"{neg_pct}%")
+
+# two-column layout: charts | top posts
+left, right = st.columns([2.2, 1])
+
+with left:
+    # Bar chart (counts)
+    st.subheader("Sentiment Distribution")
+    bar_df = pd.DataFrame({
+        "sentiment": ["positive", "neutral", "negative"],
+        "count": [pos, neu, neg]
+    })
+    fig_bar = px.bar(bar_df, x="sentiment", y="count",
+                     title=f"{ticker.upper()} — sentiment counts",
+                     labels={"sentiment": "Sentiment", "count": "Number of posts"},
+                     text="count")
+    fig_bar.update_layout(margin=dict(t=40, b=10))
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    # Pie chart
+    st.subheader("Sentiment Share")
+    fig_pie = px.pie(bar_df, names="sentiment", values="count",
+                     title="Share by sentiment", hole=0.35)
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+    # Time series (daily stacked area)
+    st.subheader("Daily Sentiment Trend")
+    # group by day + sentiment
+    daily = df.set_index('created_dt').groupby([pd.Grouper(freq='D'), 'sentiment']).size().reset_index(name='count')
+    if daily.empty:
+        st.write("Not enough data for a daily trend.")
+    else:
+        pivot = daily.pivot(index='created_dt', columns='sentiment', values='count').fillna(0)
+        # ensure columns order
+        ycols = [c for c in ["positive", "neutral", "negative"] if c in pivot.columns]
+        fig_area = px.area(pivot.reset_index(), x='created_dt', y=ycols,
+                           title="Daily counts by sentiment (stacked)",
+                           labels={"created_dt": "Date"})
+        st.plotly_chart(fig_area, use_container_width=True)
+
+with right:
+    st.subheader("Top recent posts")
+    # show newest first
+    recent = df.sort_values(by='created_dt', ascending=False).head(30)
+    for _, row in recent.iterrows():
+        # show the title and sentiment, with link
+        st.markdown(f"**{row['title']}**  \nSentiment: *{row['sentiment']}*  \n[Open post]({row['url']})")
+        st.write("---")
+
+# optional: allow saving this run to CSV
+save_col1, save_col2 = st.columns([1, 3])
+with save_col1:
+    if st.button("Save run to CSV"):
+        out_path = f"data/{ticker.upper()}_reddit_sentiment.csv"
+        os.makedirs("data", exist_ok=True)
+        df.to_csv(out_path, index=False, encoding="utf-8")
+        st.success(f"Saved {len(df)} rows to {out_path}")
 
 
 

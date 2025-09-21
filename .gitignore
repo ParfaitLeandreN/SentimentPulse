@@ -1,6 +1,35 @@
 __pycache__/
 .env/
 env/
-*.csv
 *.sqlite
-data/
+
+# Ignore all CSVs except example/sample ones
+*.csv
+!data/example_*.csv
+
+# Ignore generated data but keep folder
+data/*
+!data/.gitkeep
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# __pycache__/
+# .env/
+# env/
+# *.csv
+# *.sqlite
+# data/
