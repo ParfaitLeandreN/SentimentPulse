@@ -107,6 +107,22 @@ with left:
                            labels={"created_dt": "Date"})
         st.plotly_chart(fig_area, use_container_width=True)
 
+
+        # Hourly trend (line chart)
+    st.subheader("Hourly Sentiment Trend")
+    hourly = df.set_index('created_dt').groupby([pd.Grouper(freq='H'), 'sentiment']).size().reset_index(name='count')
+    if hourly.empty:
+        st.write("Not enough data for an hourly trend.")
+    else:
+        pivot_h = hourly.pivot(index='created_dt', columns='sentiment', values='count').fillna(0)
+        ycols_h = [c for c in ["positive", "neutral", "negative"] if c in pivot_h.columns]
+        fig_line = px.line(pivot_h.reset_index(), x='created_dt', y=ycols_h,
+                           title="Hourly counts by sentiment",
+                           labels={"created_dt": "Time"})
+        st.plotly_chart(fig_line, use_container_width=True)
+
+        
+
 with right:
     st.subheader("Top recent posts")
     # show newest first
