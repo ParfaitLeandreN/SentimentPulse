@@ -137,7 +137,34 @@ with left:
                         title=f"{ticker.upper()} Stock Price (7d)",
                         labels={"Close": "Price ($)"})
         st.plotly_chart(fig_price, use_container_width=True)
- 
+
+
+        # Overlay stock price with sentiment trend
+    st.subheader("Stock Price vs Sentiment (last 7 days)")
+
+    if not hist.empty and not daily.empty:
+        # Merge daily stock price with sentiment
+        price_daily = hist.copy()
+        price_daily['Date'] = price_daily['Datetime'].dt.date
+        sentiment_daily = daily.groupby(daily['created_dt'].dt.date)['count'].sum().reset_index()
+        sentiment_daily.rename(columns={'created_dt': 'Date', 'count': 'SentimentCount'}, inplace=True)
+
+        merged = pd.merge(price_daily, sentiment_daily, on='Date', how='inner')
+
+        fig_overlay = px.line(merged, x="Date", y="Close", labels={"Close": "Stock Price ($)"})
+        fig_overlay.add_bar(x=merged["Date"], y=merged["SentimentCount"], name="Sentiment volume", opacity=0.4, yaxis="y2")
+
+        fig_overlay.update_layout(
+            title=f"{ticker.upper()} Stock Price vs Sentiment Volume",
+            yaxis=dict(title="Stock Price ($)"),
+            yaxis2=dict(title="Sentiment Count", overlaying="y", side="right"),
+            legend=dict(x=0, y=1.1, orientation="h")
+        )
+        st.plotly_chart(fig_overlay, use_container_width=True)
+    else:
+        st.write("Not enough data to overlay stock price and sentiment.")
+
+
 
 with right:
     st.subheader("Top recent posts")
