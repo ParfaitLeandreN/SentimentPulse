@@ -139,30 +139,78 @@ with left:
         st.plotly_chart(fig_price, use_container_width=True)
 
 
+        
         # Overlay stock price with sentiment trend
     st.subheader("Stock Price vs Sentiment (last 7 days)")
 
     if not hist.empty and not daily.empty:
-        # Merge daily stock price with sentiment
+        # Prepare daily stock price
         price_daily = hist.copy()
         price_daily['Date'] = price_daily['Datetime'].dt.date
+        price_daily = price_daily.groupby('Date')['Close'].mean().reset_index()
+
+        # Prepare daily sentiment volume
         sentiment_daily = daily.groupby(daily['created_dt'].dt.date)['count'].sum().reset_index()
         sentiment_daily.rename(columns={'created_dt': 'Date', 'count': 'SentimentCount'}, inplace=True)
 
+        # Merge
         merged = pd.merge(price_daily, sentiment_daily, on='Date', how='inner')
 
-        fig_overlay = px.line(merged, x="Date", y="Close", labels={"Close": "Stock Price ($)"})
-        fig_overlay.add_bar(x=merged["Date"], y=merged["SentimentCount"], name="Sentiment volume", opacity=0.4, yaxis="y2")
+        # Create figure
+        fig_overlay = px.line(merged, x="Date", y="Close", labels={"Close": "Stock Price ($)"}, title=f"{ticker.upper()} Stock Price vs Sentiment Volume")
 
+        # Add sentiment bars
+        fig_overlay.add_bar(x=merged["Date"], y=merged["SentimentCount"], name="Sentiment volume", opacity=0.5, yaxis="y2")
+
+        # Fix dual axes
         fig_overlay.update_layout(
-            title=f"{ticker.upper()} Stock Price vs Sentiment Volume",
-            yaxis=dict(title="Stock Price ($)"),
-            yaxis2=dict(title="Sentiment Count", overlaying="y", side="right"),
-            legend=dict(x=0, y=1.1, orientation="h")
+            yaxis=dict(title="Stock Price ($)", side="left"),
+            yaxis2=dict(title="Sentiment Count", side="right", overlaying="y", showgrid=False),
+            legend=dict(x=0, y=1.1, orientation="h"),
+            bargap=0.2
         )
+
         st.plotly_chart(fig_overlay, use_container_width=True)
     else:
         st.write("Not enough data to overlay stock price and sentiment.")
+
+
+    from wordcloud import WordCloud
+    import matplotlib.pyplot as plt
+
+    st.subheader("Word Clouds by Sentiment")
+
+    if not df.empty:
+        sentiments = ["positive", "neutral", "negative"]
+        cols = st.columns(3)
+
+        for idx, sentiment in enumerate(sentiments):
+            with cols[idx]:
+                st.markdown(f"**{sentiment.capitalize()} Posts**")
+                subset = df[df["sentiment"] == sentiment]
+
+                if not subset.empty:
+                    text = " ".join(subset["title"].dropna().astype(str))
+                    if text.strip():
+                        wc = WordCloud(
+                            width=400,
+                            height=300,
+                            background_color="black",
+                            colormap="Set2"
+                        ).generate(text)
+
+                        fig, ax = plt.subplots(figsize=(4, 3))
+                        ax.imshow(wc, interpolation="bilinear")
+                        ax.axis("off")
+                        st.pyplot(fig)
+                    else:
+                        st.write("No text available.")
+                else:
+                    st.write("No posts found.")
+    else:
+        st.write("No posts found to generate word clouds.")
+
+
 
 
 
