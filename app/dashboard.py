@@ -7,6 +7,8 @@ import os
 # import helper functions from utils
 from utils.reddit_scraper import get_reddit_posts
 from utils.sentiment import analyze_sentiment
+from utils.finance import get_stock_price, get_stock_history
+
 
 st.set_page_config(page_title="SentimentPulse", layout="wide")
 st.title("📈 SentimentPulse — Live Reddit Sentiment")
@@ -63,11 +65,17 @@ neg_pct = round(100 * neg / total, 1) if total else 0
 neu_pct = round(100 * neu / total, 1) if total else 0
 
 # KPI row
-k1, k2, k3, k4 = st.columns([1.5, 1, 1, 1])
+k1, k2, k3, k4, k5 = st.columns([1.2, 1, 1, 1, 1.2])
 k1.metric("Ticker", ticker.upper())
 k2.metric("Total posts", total)
 k3.metric("Positive %", f"{pos_pct}%")
 k4.metric("Negative %", f"{neg_pct}%")
+
+# fetch stock price
+price, change = get_stock_price(ticker)
+if price is not None:
+    k5.metric("Stock Price", f"${price}", f"{change}%")
+
 
 # two-column layout: charts | top posts
 left, right = st.columns([2.2, 1])
@@ -121,16 +129,39 @@ with left:
                            labels={"created_dt": "Time"})
         st.plotly_chart(fig_line, use_container_width=True)
 
-        
+        # Stock price chart
+    st.subheader("Stock Price (last 7 days)")
+    hist = get_stock_history(ticker)
+    if not hist.empty:
+        fig_price = px.line(hist, x="Datetime", y="Close",
+                        title=f"{ticker.upper()} Stock Price (7d)",
+                        labels={"Close": "Price ($)"})
+        st.plotly_chart(fig_price, use_container_width=True)
+ 
 
 with right:
     st.subheader("Top recent posts")
     # show newest first
     recent = df.sort_values(by='created_dt', ascending=False).head(30)
+
+    # sentiment color map
+    sentiment_colors = {
+        "positive": "✅",
+        "neutral": "⚪",
+        "negative": "❌"
+    }
+
     for _, row in recent.iterrows():
-        # show the title and sentiment, with link
-        st.markdown(f"**{row['title']}**  \nSentiment: *{row['sentiment']}*  \n[Open post]({row['url']})")
-        st.write("---")
+        sentiment_icon = sentiment_colors.get(row['sentiment'], "❓")
+
+        st.markdown(f"""
+        **{row['title']}**  
+        Sentiment: {sentiment_icon} {row['sentiment'].capitalize()}  
+        [Open post ↗]({row['url']})
+        """)
+        st.divider()
+
+
 
 # optional: allow saving this run to CSV
 save_col1, save_col2 = st.columns([1, 3])
