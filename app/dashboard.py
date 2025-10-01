@@ -1,4 +1,8 @@
-# app/dashboard.py
+import sys
+import os
+# Add the parent dir (repo root) to sys.path so 'utils/' is discoverable from 'app/'
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
