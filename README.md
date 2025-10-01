@@ -1,32 +1,54 @@
 # 📊 SentimentPulse
 
-**Real-time stock sentiment analyzer** combining Reddit, Twitter, and News data with stock prices to visualize market mood and forecast movement.
+**Real-time stock sentiment analyzer** combining Reddit data with stock prices to visualize market mood and trends.
 
-![banner](https://img.shields.io/badge/python-3.10-blue.svg) ![status](https://img.shields.io/badge/status-WIP-yellow)
+![banner](https://img.shields.io/badge/python-3.10-blue.svg) ![status](https://img.shields.io/badge/status-Active-brightgreen)
 
 ---
 
 ## 📌 What is SentimentPulse?
 
-**SentimentPulse** is a dashboard that lets users pick a stock (like TSLA or AAPL) and instantly view:
-- 🔥 Public sentiment (Reddit, Twitter, News headlines)
-- 📈 How sentiment correlates with stock prices
-- 🧠 Optional price direction forecast based on recent sentiment
+**SentimentPulse** is a Streamlit dashboard that lets users pick a stock ticker (like TSLA, AAPL, or MSFT) and instantly view:
 
-> This tool empowers retail investors and analysts to **visualize internet emotion and market trends** in one place.
+- 🔥 Public sentiment from Reddit discussions  
+- 📈 How sentiment correlates with live stock prices  
+- 🕒 Sentiment distribution over time (daily & hourly trends)  
+- ☁️ Word clouds showing the most common words in positive, neutral, and negative posts  
+
+This tool empowers retail investors and analysts to **visualize internet emotion and market behavior** in one place.
 
 ---
 
 ## 🎯 Features
 
-- ✅ Scrapes Reddit, Twitter (or Twitter alternatives), and News for stock mentions
-- ✅ Applies NLP sentiment scoring to text
-- ✅ Pulls historical stock price data via `yfinance`
-- ✅ Merges & visualizes price vs. sentiment over time
-- ✅ Interactive dashboard via Streamlit
-- 🔮 (Optional) Basic machine learning to forecast next-day price direction
+- ✅ Scrapes Reddit for posts mentioning a stock ticker  
+- ✅ Applies NLP sentiment scoring (positive / neutral / negative)  
+- ✅ Pulls historical & live stock price data via `yfinance`  
+- ✅ Interactive visualizations:
+  - KPI metrics
+  - Sentiment bar chart & pie chart
+  - Daily & hourly sentiment trends
+  - Stock price chart
+  - Overlay of stock price vs sentiment volume
+  - Word clouds by sentiment
+- ✅ Export posts + sentiment to CSV  
+- ⚡ Cached requests for faster re-runs  
 
 ---
 
 ## 🧱 Project Structure
 
+```text
+SentimentPulse/
+│
+├── app/
+│   ├── dashboard.py          # Main Streamlit dashboard
+│   └── utils/
+│       ├── reddit_scraper.py # Reddit scraper (PRAW)
+│       ├── sentiment.py      # Sentiment analysis (TextBlob)
+│       └── finance.py        # Stock price utilities (yfinance)
+│
+├── notebooks/                # Jupyter notebooks (for experiments, optional)
+├── requirements.txt          # Python dependencies
+├── README.md                 # Project documentation
+└── .gitignore                # Ignore venv, cache, data, etc.

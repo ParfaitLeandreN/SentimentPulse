@@ -1,0 +1,8 @@
+streamlit
+pandas
+plotly
+matplotlib
+wordcloud
+yfinance
+praw
+textblob
